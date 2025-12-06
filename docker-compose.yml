@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  # Pub/Sub Emulator
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+    environment:
+      - PUBSUB_PROJECT_ID=test-project
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ingestion Service
+  ingestion:
+    build:
+      context: ./ingestion
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GCP_PROJECT_ID=test-project
+      - PUBSUB_TOPIC=events
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - PORT=8000
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - event-pipeline
+
+  # Consumer Service (scalable)
+  consumer:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    environment:
+      - GCP_PROJECT_ID=test-project
+      - PUBSUB_SUBSCRIPTION=events-subscription
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - MAX_WORKERS=4
+      - PROCESSING_DELAY=0.1
+      - FLASK_PORT=8080
+      - METRICS_PORT=9090
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - event-pipeline
+    deploy:
+      replicas: 1
+
+  # Autoscaler Service
+  autoscaler:
+    build:
+      context: ./autoscaler
+      dockerfile: Dockerfile
+    environment:
+      - GCP_PROJECT_ID=test-project
+      - PUBSUB_SUBSCRIPTION=events-subscription
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - SERVICE_NAME=consumer
+      - MIN_REPLICAS=1
+      - MAX_REPLICAS=10
+      - LAG_THRESHOLD_UP=100
+      - LAG_THRESHOLD_DOWN=10
+      - MESSAGES_PER_REPLICA=50
+      - SCALE_UP_COOLDOWN=30
+      - SCALE_DOWN_COOLDOWN=60
+      - POLL_INTERVAL=10
+      - FLASK_PORT=8080
+      - METRICS_PORT=9090
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - consumer
+      - pubsub-emulator
+    networks:
+      - event-pipeline
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - event-pipeline
+
+  # Loki
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - event-pipeline
+
+  # Promtail (for collecting logs)
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - event-pipeline
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    ports:
+      - "4317:4317"  # OTLP gRPC receiver
+      - "4318:4318"  # OTLP HTTP receiver
+      - "8889:8889"  # Prometheus exporter
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml
+    command: ["--config=/etc/otelcol/config.yaml"]
+    networks:
+      - event-pipeline
+
+  # Jaeger (for trace visualization)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - event-pipeline
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - event-pipeline
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+
+networks:
+  event-pipeline:
+    driver: bridge
+

@@ -1,0 +1,89 @@
+{
+  "dashboard": {
+    "title": "Event Pipeline Dashboard",
+    "tags": ["event-pipeline"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Events Received",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ingestion_events_received_total[5m])",
+            "legendFormat": "Events/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Events Published",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ingestion_events_published_total[5m])",
+            "legendFormat": "Published/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Messages Processed",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(consumer_messages_processed_total[5m])",
+            "legendFormat": "Processed/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Queue Lag",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "autoscaler_queue_lag_observed",
+            "legendFormat": "Queue Lag"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Consumer Replicas",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "autoscaler_current_replicas{service=\"consumer\"}",
+            "legendFormat": "Current Replicas"
+          },
+          {
+            "expr": "autoscaler_target_replicas{service=\"consumer\"}",
+            "legendFormat": "Target Replicas"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Scaling Actions",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(autoscaler_scaling_actions_total[5m])",
+            "legendFormat": "{{direction}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}
+
