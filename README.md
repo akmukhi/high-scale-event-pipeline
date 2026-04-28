@@ -1,8 +1,18 @@
 # High-Scale Event Pipeline with Autoscaling
 
-A production-ready event-driven pipeline demonstrating high-scale event processing with autoscaling capabilities. This project includes end-to-end observability with Prometheus metrics, OpenTelemetry traces, and Loki logs.
+## 🚨 Problem
+Processing high-throughput event streams reliably is difficult without proper scaling, fault tolerance, and observability. Many systems fail under load due to poor visibility and lack of dynamic scaling.
 
-## Architecture
+## ✅ Solution
+Built a production-ready event-driven pipeline using Google Cloud Pub/Sub with a custom autoscaler and full observability (metrics, logs, and distributed tracing).
+
+## 📈 Key Highlights
+- Handles high-throughput event ingestion and processing  
+- Custom autoscaler dynamically scales consumers based on queue lag  
+- End-to-end observability with Prometheus, OpenTelemetry, Loki, and Grafana  
+- Fault-tolerant, containerized microservices architecture  
+
+## 🏗 Architecture
 
 The pipeline consists of four main components:
 
@@ -20,7 +30,14 @@ Events → Ingestion Service → Pub/Sub Topic → Consumer Service(s) → Proce
                                     ↓
                             Scales Consumer Replicas
 ```
+## 🎯 Why This Matters
+This project demonstrates real-world platform and SRE concepts:
+- Designing scalable event-driven systems  
+- Implementing autoscaling based on system load  
+- Building observable systems for debugging and reliability  
+- Simulating production-grade distributed architectures
 
+  
 ## Features
 
 - **Event Ingestion**: FastAPI-based REST API for receiving events
@@ -122,12 +139,6 @@ done
 wait
 ```
 
-### 5. Access Dashboards
-
-- **Grafana**: http://localhost:3000 (admin/admin)
-- **Prometheus**: http://localhost:9090
-- **Jaeger**: http://localhost:16686
-- **Ingestion API**: http://localhost:8000/docs (FastAPI Swagger UI)
 
 ## Configuration
 
@@ -151,41 +162,6 @@ The autoscaler monitors the Pub/Sub subscription queue lag and scales consumer c
 - **Scale Up**: When queue lag > `LAG_THRESHOLD_UP` and cooldown period has passed
 - **Scale Down**: When queue lag < `LAG_THRESHOLD_DOWN` and cooldown period has passed
 - **Cooldown**: Prevents rapid scaling oscillations (30s up, 60s down by default)
-
-## Project Structure
-
-```
-high-scale-event-pipeline/
-├── ingestion/           # Ingestion service (FastAPI)
-│   ├── app/
-│   │   ├── main.py      # FastAPI application
-│   │   ├── pubsub_client.py
-│   │   └── metrics.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── consumer/            # Consumer service
-│   ├── app/
-│   │   ├── main.py      # Pub/Sub subscriber
-│   │   └── metrics.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── autoscaler/          # Autoscaler service
-│   ├── app/
-│   │   ├── main.py      # Autoscaler logic
-│   │   ├── pubsub_monitor.py
-│   │   └── docker_client.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── prometheus/          # Prometheus config
-│   └── prometheus.yml
-├── otel-collector/      # OpenTelemetry config
-│   └── config.yaml
-├── grafana/             # Grafana dashboards
-│   └── dashboards/
-├── docker-compose.yml    # All services
-├── promtail-config.yml  # Log collection config
-└── setup-pubsub.sh      # Pub/Sub setup script
-```
 
 ## Observability
 
@@ -219,118 +195,6 @@ OpenTelemetry traces are automatically instrumented and exported to Jaeger. View
 ### Logs
 
 All services emit structured JSON logs that are collected by Promtail and stored in Loki. Query logs in Grafana.
-
-## Scaling
-
-### Manual Scaling
-
-Scale consumer service manually:
-
-```bash
-docker-compose up -d --scale consumer=5
-```
-
-### Autoscaling
-
-The autoscaler automatically scales consumer containers based on queue lag. Monitor scaling actions:
-
-```bash
-# View autoscaler logs
-docker-compose logs -f autoscaler
-
-# Check current replicas
-docker-compose ps consumer
-```
-
-## Development
-
-### Running Services Locally
-
-```bash
-# Ingestion service
-cd ingestion
-pip install -r requirements.txt
-python -m app.main
-
-# Consumer service
-cd consumer
-pip install -r requirements.txt
-python -m app.main
-
-# Autoscaler service
-cd autoscaler
-pip install -r requirements.txt
-python -m app.main
-```
-
-### Testing
-
-```bash
-# Health checks
-curl http://localhost:8000/health  # Ingestion
-curl http://localhost:8080/health   # Consumer/Autoscaler
-
-# Metrics
-curl http://localhost:8000/metrics
-curl http://localhost:9090/metrics
-```
-
-## Production Considerations
-
-For production deployment:
-
-1. **Use Real Pub/Sub**: Replace emulator with Google Cloud Pub/Sub
-   - Set `GCP_PROJECT_ID` to your project ID
-   - Remove `PUBSUB_EMULATOR_HOST`
-   - Configure GCP credentials
-
-2. **Kubernetes Deployment**: Use Kubernetes HPA instead of Docker-based autoscaling
-   - Deploy services as Kubernetes deployments
-   - Use HPA with custom metrics from Prometheus
-
-3. **Monitoring**: Use Cloud Monitoring API for accurate queue lag metrics
-   - Implement `get_queue_lag()` in `autoscaler/app/pubsub_monitor.py` using Monitoring API
-
-4. **Security**: 
-   - Use service accounts with minimal permissions
-   - Enable TLS for all services
-   - Secure Grafana and other UIs
-
-5. **High Availability**:
-   - Deploy multiple ingestion service replicas
-   - Use Pub/Sub's built-in message ordering and deduplication
-   - Configure proper health checks and readiness probes
-
-## Troubleshooting
-
-### Services not starting
-
-```bash
-# Check logs
-docker-compose logs
-
-# Check specific service
-docker-compose logs ingestion
-docker-compose logs consumer
-docker-compose logs autoscaler
-```
-
-### Pub/Sub connection issues
-
-```bash
-# Verify emulator is running
-curl http://localhost:8085
-
-# Check topic/subscription exist
-./setup-pubsub.sh
-```
-
-### Autoscaler not scaling
-
-- Check autoscaler logs for errors
-- Verify Docker socket is mounted (`/var/run/docker.sock`)
-- Ensure queue lag metrics are available
-- Check cooldown periods haven't expired
 
 ## License
 
